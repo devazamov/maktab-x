@@ -47,6 +47,23 @@ export async function POST(req: NextRequest) {
 
   const supabase = supabaseAdmin();
 
+  // First-login admin bootstrap: ADMIN_TELEGRAM_IDS is a comma-separated
+  // list of Telegram numeric IDs that get SUPER_ADMIN on their very
+  // first login. Existing users are never touched here, so a manual
+  // role change made later (or removing an ID from the list) always
+  // wins over this — it only fires once, at account creation.
+  const { data: existing } = await supabase
+    .from("users")
+    .select("id")
+    .eq("telegram_id", tgUser.id)
+    .maybeSingle();
+
+  const adminIds = (process.env.ADMIN_TELEGRAM_IDS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const isBootstrapAdmin = !existing && adminIds.includes(String(tgUser.id));
+
   const { data: user, error } = await supabase
     .from("users")
     .upsert(
@@ -56,6 +73,7 @@ export async function POST(req: NextRequest) {
         last_name: tgUser.last_name ?? null,
         username: tgUser.username ?? null,
         language_code: tgUser.language_code ?? null,
+        ...(isBootstrapAdmin ? { role: "SUPER_ADMIN" } : {}),
         updated_at: new Date().toISOString(),
       },
       { onConflict: "telegram_id", ignoreDuplicates: false }
