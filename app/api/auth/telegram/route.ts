@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateTelegramInitData } from "@/lib/telegram";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { createSession } from "@/lib/session";
+import { upsertTelegramUser } from "@/lib/users";
 
 /**
  * POST /api/auth/telegram
  * Body: { initData: string }
  *
  * Validates the Mini App's initData against the bot token, then
- * upserts the user in Supabase (first login = STUDENT role) and
- * issues a session cookie. This is the only place a Telegram user
- * becomes an authenticated MAKTAB X user.
+ * upserts the user in Supabase (first login = STUDENT role, unless
+ * ADMIN_TELEGRAM_IDS bootstraps them to SUPER_ADMIN) and issues a
+ * session cookie. Role + class assignment itself happens in the
+ * bot's /start registration flow (services/bot.ts), not here.
  */
 export async function POST(req: NextRequest) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -47,50 +49,12 @@ export async function POST(req: NextRequest) {
 
   const supabase = supabaseAdmin();
 
-  // First-login admin bootstrap: ADMIN_TELEGRAM_IDS is a comma-separated
-  // list of Telegram numeric IDs that get SUPER_ADMIN on their very
-  // first login. Existing users are never touched here, so a manual
-  // role change made later (or removing an ID from the list) always
-  // wins over this — it only fires once, at account creation.
-  const { data: existing } = await supabase
-    .from("users")
-    .select("id")
-    .eq("telegram_id", tgUser.id)
-    .maybeSingle();
-
-  const adminIds = (process.env.ADMIN_TELEGRAM_IDS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const isBootstrapAdmin = !existing && adminIds.includes(String(tgUser.id));
-
-  const { data: user, error } = await supabase
-    .from("users")
-    .upsert(
-      {
-        telegram_id: tgUser.id,
-        first_name: tgUser.first_name,
-        last_name: tgUser.last_name ?? null,
-        username: tgUser.username ?? null,
-        language_code: tgUser.language_code ?? null,
-        ...(isBootstrapAdmin ? { role: "SUPER_ADMIN" } : {}),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "telegram_id", ignoreDuplicates: false }
-    )
-    .select()
-    .single();
-
-  if (error || !user) {
+  let user;
+  try {
+    user = await upsertTelegramUser(supabase, tgUser);
+  } catch (error) {
     console.error("auth upsert failed", error);
     return NextResponse.json({ error: "Auth failed" }, { status: 500 });
-  }
-
-  // Ensure a student_profiles row exists for first-time STUDENT users.
-  if (user.role === "STUDENT") {
-    await supabase
-      .from("student_profiles")
-      .upsert({ user_id: user.id }, { onConflict: "user_id", ignoreDuplicates: true });
   }
 
   await createSession({

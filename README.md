@@ -8,34 +8,51 @@ but as its own project/schema, using the stack the brief specifies:
 Next.js (App Router) + TypeScript + Tailwind + Supabase + Telegraf +
 Gemini (Phase 3+), deployed on Vercel.
 
-## What's built (Phase 1)
+## What's built
 
-Per the phased plan in the spec (section 47), this first pass covers:
+Phase 1 (project foundation, auth, Student Home) plus a first slice of
+Phase 2/7 pulled forward by request:
 
 - ✅ Project architecture & tech setup
-- ✅ Database schema (Supabase/Postgres) — Phase 1 tables live, later
-  phases' tables laid out ahead of time so future migrations don't
-  reshape existing data (see comments in `database/schema.sql`)
-- ✅ Telegram Bot foundation — `/start` with a Mini App launch button,
-  webhook route, secret-token verification
-- ✅ Telegram Mini App foundation — WebApp SDK wired in, theme-ready
-- ✅ Authentication — server-side `initData` HMAC validation (the real
-  Telegram algorithm, not a stub), user upsert, signed session cookie
-- ✅ Student Home — greeting, level/XP progress, streak, quick-actions
-  grid, daily quests — reads from `/api/me`, which reads real Supabase
-  data once a session + Supabase are configured
-- ✅ UI component system — Button, Card, ProgressBar, Badge, BottomNav,
-  all built on the brief's color tokens (`tailwind.config.ts`)
+- ✅ Database schema (Supabase/Postgres)
+- ✅ Telegram Bot foundation — `/start`, webhook, secret-token check
+- ✅ Telegram Mini App foundation — WebApp SDK wired in
+- ✅ Authentication — real `initData` HMAC validation, session cookie
+- ✅ Student Home — level/XP, streak, quick-actions, daily quests
+- ✅ UI component system
+- ✅ **Bot registration flow** — on first `/start`, a user not yet
+  assigned to a class is asked "O'quvchiman / O'qituvchiman", then
+  picks their class from the real `classes` table for the resolved
+  school (`SCHOOL_ID` env, or the only school if there's just one).
+  Students get `student_profiles.class_id` set; the first teacher to
+  claim a class becomes its `homeroom_teacher_id`. Already-registered
+  users (and admins) skip straight to the normal welcome message.
+- ✅ **QR classroom page** (`/classroom/[id]`) — public, read-only,
+  shows the school/class name, student *count* (never individual
+  student names — per the spec's own privacy rule), and homeroom
+  teacher. You generate/print the QR codes yourselves, each one
+  encoding `https://maktab-x.onrender.com/classroom/<class_id>`.
+- ✅ **In-Mini-App QR scanner** (`/scan`) — the bot's "📷 QR
+  skanerlash" button opens this; it reads the camera with `jsQR` and
+  jumps straight to `/classroom/<id>` when it recognizes a MAKTAB X
+  QR, or just shows the raw decoded text otherwise.
 
 Every other quick-action (Quiz, 1v1 Battle, AI Crossword, AI Teacher,
-Fanlar, Liga, Sinfim, Xavfsizlik) is visibly present but shows an
-honest "tez orada" (coming soon) toast instead of pretending to work —
-no fake buttons or fake APIs, as the spec asks.
+Fanlar, Liga, Xavfsizlik) still shows an honest "tez orada" toast.
 
-**Not built yet:** everything from Phase 2 onward (quizzes, battles,
-class/school league, crossword, AI teacher, QR classroom, safety
-center, teacher/parent/admin dashboards). The schema anticipates them;
-the app code doesn't implement them yet.
+## Queued next (not built yet)
+
+- Voice AI teacher / pronunciation checker (needs `GEMINI_API_KEY` +
+  a speech pipeline — not wired up yet)
+- Missions + Telegram sticker rewards (needs real sticker artwork
+  turned into an actual Telegram sticker pack via @Stickers first —
+  code can't fabricate that art)
+- Friend-referral XP bonus
+- "Glow" visual pass over the Phase 1 screens (brighter card glow,
+  glassmorphism, XP-gain glow pulse)
+- Admin panel (class management, sticker management) — right now
+  classes are managed directly in Supabase; there's no in-app admin
+  UI yet
 
 ## Project structure
 
