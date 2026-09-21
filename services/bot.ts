@@ -5,13 +5,15 @@ import type { TelegramUser } from "@/lib/telegram";
 
 let bot: Telegraf | null = null;
 
-function mainMenuKeyboard(appUrl: string) {
-  return {
-    inline_keyboard: [
-      [{ text: "🚀 Maktab X'ni ochish", web_app: { url: appUrl } }],
-      [{ text: "📷 QR skanerlash", web_app: { url: `${appUrl}/scan` } }],
-    ],
-  };
+function mainMenuKeyboard(appUrl: string, isAdmin = false) {
+  const rows = [
+    [{ text: "🚀 Maktab X'ni ochish", web_app: { url: appUrl } }],
+    [{ text: "📷 QR skanerlash", web_app: { url: `${appUrl}/scan` } }],
+  ];
+  if (isAdmin) {
+    rows.push([{ text: "⚙️ Sinflarni boshqarish", web_app: { url: `${appUrl}/admin/classes` } }]);
+  }
+  return { inline_keyboard: rows };
 }
 
 /**
@@ -53,9 +55,10 @@ export function getBot() {
     const registered = await isRegistered(supabase, user.id, user.role);
 
     if (registered || user.role === "SUPER_ADMIN" || user.role === "SCHOOL_ADMIN") {
+      const isAdmin = user.role === "SUPER_ADMIN" || user.role === "SCHOOL_ADMIN";
       await ctx.reply(
         `🎓 Xush kelibsiz, ${tgUser.first_name}!\n\nBilim. Musobaqa. Rivojlanish. Xavfsizlik.\n\nHammasi bir joyda.`,
-        { reply_markup: mainMenuKeyboard(appUrl) }
+        { reply_markup: mainMenuKeyboard(appUrl, isAdmin) }
       );
       return;
     }
